@@ -18,10 +18,8 @@ class FetchResultLogTest(HttpUser):
             "/apis/results.tekton.dev/v1alpha2/parents/-/results/-/records",
             name='fetch_id').json()['records']
 
-        # Small Randomness in picking first taskrun for fetching log
-        shuffle(records)
-
-        self.log_id = None
+        self.log_ids = []
+        self.log_ids_index = 0
 
         # Look for TaskRun object to fetch logs
         for record in records:
@@ -30,12 +28,11 @@ class FetchResultLogTest(HttpUser):
                 # Uncomment below to include PipelineRun for search
                 # or record['data']['type'].endswith(".PipelineRun")
             ):
-                self.log_id = record['name']
+                self.log_ids.append(record['name'].replace("/records", "/logs"))
                 break
 
-        # Replace /records with /logs endpoint to fetch the log data for the TaskRun
-        if self.log_id:
-            self.log_id = self.log_id.replace("/records", "/logs")
+        # Small Randomness in picking first taskrun for fetching log
+        shuffle(self.log_ids)
 
     def validate_response(self, response):
         '''Check whether the log response contains actual data when returning 200 status code'''
@@ -46,9 +43,13 @@ class FetchResultLogTest(HttpUser):
     @task
     def get_log(self) -> None:
         """Get Log content for a result"""
-        if self.log_id:
+        ###if self.log_ids:   # or is this "if ..." really needed? I would expect Locust only start launching tasks once on_start finishes executing
+            self.log_ids_index += 1
+            if self.log_ids_index == len(self.log_ids):
+                self.log_ids_index = 0
+    
             with self.client.get(
-                f"/apis/results.tekton.dev/v1alpha2/parents/{self.log_id}",
+                f"/apis/results.tekton.dev/v1alpha2/parents/{self.log_ids[self.log_ids_index]}",
                 name="/log",
                 catch_response=True
             ) as response:
